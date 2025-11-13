@@ -23,7 +23,7 @@ import (
 // GoldpingerConfig represents the configuration for goldpinger
 var GoldpingerConfig = struct {
 	StaticFilePath   string  `long:"static-file-path" description:"Folder for serving static files" env:"STATIC_FILE_PATH"`
-	ZapConfigPath    string  `long:"zap-config" description:"Path to zap config file" env:"ZAP_CONFIG" default:"/config/zap.json"`
+	LogLevel         string  `long:"log-level" description:"Log level (debug, info, warn, error)" env:"LOG_LEVEL" default:"info"`
 	KubeConfigPath   string  `long:"kubeconfig" description:"Path to kubeconfig file" env:"KUBECONFIG"`
 	RefreshInterval  int     `long:"refresh-interval" description:"If > 0, will create a thread and collect stats every n seconds" env:"REFRESH_INTERVAL" default:"30"`
 	JitterFactor     float64 `long:"jitter-factor" description:"The amount of jitter to add while pinging clients" env:"JITTER_FACTOR" default:"0.05"`

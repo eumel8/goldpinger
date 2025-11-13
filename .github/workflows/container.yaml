@@ -1,0 +1,19 @@
+name: Container
+
+on:
+  push:
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+      - name: Login Build Push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          make build
+          docker images
+          docker tag bloomberg/goldpinger:v3.10.2 ghcr.io/${{ github.repository_owner }}/goldpinger:${VERSION}
+          docker push ghcr.io/${{ github.repository_owner }}/goldpinger:${VERSION}

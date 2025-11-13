@@ -17,6 +17,7 @@ Oh, and it gives you the graph below for your cluster. Check out the [video expl
 - [Goldpinger](#goldpinger)
   - [On the menu](#on-the-menu)
   - [Rationale](#rationale)
+  - [Recent Improvements](#recent-improvements)
   - [Quick start](#quick-start)
   - [Building](#building)
     - [Compiling using a multi-stage Dockerfile](#compiling-using-a-multi-stage-dockerfile)
@@ -43,6 +44,27 @@ We built __Goldpinger__ to troubleshoot, visualise and alert on our networking l
 It's small (~16MB), simple and you'll wonder why you hadn't had it before.
 
 If you'd like to know more, you can watch [our presentation at Kubecon 2018 Seattle](https://youtu.be/DSFxRz_0TU4).
+
+## Recent Improvements
+
+### :rocket: Enhanced Logging & Debugging
+- **Simplified logging configuration**: Use `LOG_LEVEL` environment variable (debug/info/warn/error) instead of complex JSON config files
+- **Structured logging**: All logs use structured zap logging with proper fields for easier parsing
+- **Enhanced probe debugging**: Debug level shows detailed timing, connection info, error categorization for DNS/TCP/HTTP probes
+
+### :wrench: Critical Bug Fixes
+- **Fixed external probe blocking**: External probes (DNS/TCP/HTTP) now run in parallel and use background caching
+  - Dead TCP targets no longer cause pod-to-pod health checks to timeout
+  - Eliminated "context deadline exceeded" cascade failures
+  - Pods remain responsive even with many slow/dead external targets
+- **Fixed cluster health calculation**: External probe failures no longer mark entire cluster as unhealthy
+  - Cluster health now only reflects pod-to-pod connectivity
+  - External probe results displayed independently in UI
+
+### :zap: Performance Improvements
+- **Parallel probe execution**: All external probes run concurrently (10 targets = ~500ms instead of 5 seconds)
+- **Background probe updates**: Results cached and refreshed every refresh-interval (default 30s)
+- **Non-blocking API calls**: Health check endpoints return immediately without waiting for probe execution
 
 ## Quick start
 
@@ -107,10 +129,50 @@ docker push $(namespace="docker.io/myhandle/" make version)
 ### Helm Installation
 Goldpinger can be installed via [Helm](https://helm.sh/) using the following:
 
-```
+```bash
 helm repo add goldpinger https://bloomberg.github.io/goldpinger
 helm repo update
 helm install goldpinger goldpinger/goldpinger
+```
+
+#### Helm Configuration
+
+The Helm chart supports several configuration options. Here are some common examples:
+
+**Set log level:**
+```bash
+helm install goldpinger goldpinger/goldpinger --set goldpinger.logLevel=debug
+```
+
+**Configure external probes:**
+```bash
+helm install goldpinger goldpinger/goldpinger \
+  --set 'extraEnv[0].name=TCP_TARGETS' \
+  --set 'extraEnv[0].value=10.0.0.1:443 10.0.0.2:8080' \
+  --set 'extraEnv[1].name=HTTP_TARGETS' \
+  --set 'extraEnv[1].value=https://www.example.com' \
+  --set 'extraEnv[2].name=HOSTS_TO_RESOLVE' \
+  --set 'extraEnv[2].value=www.example.com api.example.com'
+```
+
+**Using a values file:**
+```yaml
+# values.yaml
+goldpinger:
+  logLevel: debug
+
+extraEnv:
+  - name: TCP_TARGETS
+    value: "10.0.0.1:443 10.0.0.2:8080"
+  - name: HTTP_TARGETS
+    value: "https://www.example.com http://api.example.com"
+  - name: HOSTS_TO_RESOLVE
+    value: "www.example.com api.example.com"
+```
+
+Then install:
+```bash
+helm install goldpinger goldpinger/goldpinger -f values.yaml
 ```
 
 ### Manual Installation
@@ -168,6 +230,9 @@ spec:
               value: "0.0.0.0"
             - name: PORT
               value: "8080"
+            # Log level: debug, info, warn, error (default: info)
+            - name: LOG_LEVEL
+              value: "info"
             # injecting real hostname will make for easier to understand graphs/metrics
             - name: HOSTNAME
               valueFrom:
@@ -248,6 +313,38 @@ If your cluster IPv4/IPv6 dual-stack and you want to force IPv6, you can set the
 
 ![ipv6](./extras/screenshot-ipv6.png)
 
+### Logging Configuration
+
+Goldpinger uses structured logging via [zap](https://github.com/uber-go/zap). The log level can be easily configured using an environment variable:
+
+```yaml
+            - name: LOG_LEVEL
+              value: "info"  # Options: debug, info, warn, error
+```
+
+**Available log levels:**
+- `debug` - Detailed diagnostic information (includes probe execution details, timing, connection info)
+- `info` - General informational messages (default)
+- `warn` - Warning messages for non-critical issues
+- `error` - Error messages for serious problems
+
+**Enhanced probe logging:** When using `debug` level, you'll see detailed information about:
+- DNS resolution with resolved IPs and duration
+- TCP connection details including local/remote addresses and error categorization
+- HTTP request/response details including headers, status codes, and timing
+- Error categorization (timeout, temporary, network, etc.)
+
+From `--help`:
+```sh
+--log-level=      Log level (debug, info, warn, error) (default: info) [$LOG_LEVEL]
+```
+
+Example with debug logging:
+```yaml
+            - name: LOG_LEVEL
+              value: "debug"
+```
+
 ### Note on DNS
 
 Note, that on top of resolving the other pods, all instances can also try to resolve arbitrary DNS. This allows you to test your DNS setup.
@@ -276,8 +373,9 @@ Instances can also be configured to do simple TCP or HTTP checks on external tar
 ```sh
       --tcp-targets=             A list of external targets(<host>:<port> or <ip>:<port>) to attempt a TCP check on (space delimited) [$TCP_TARGETS]
       --http-targets=            A  list of external targets(<http or https>://<url>) to attempt an HTTP{S} check on. A 200 HTTP code is considered successful. (space delimited) [$HTTP_TARGETS]
-      --tcp-targets-timeout=  The timeout for a tcp check on the provided tcp-targets (default: 500) [$TCP_TARGETS_TIMEOUT]
-      --dns-targets-timeout=  The timeout for a tcp check on the provided udp-targets (default: 500) [$DNS_TARGETS_TIMEOUT]
+      --tcp-targets-timeout=  The timeout for a tcp check on the provided tcp-targets (default: 500ms) [$TCP_TARGETS_TIMEOUT]
+      --dns-targets-timeout=  The timeout for a dns check on the provided dns-targets (default: 500ms) [$DNS_TARGETS_TIMEOUT]
+      --http-targets-timeout= The timeout for a http check on the provided http-targets (default: 500ms) [$HTTP_TARGETS_TIMEOUT]
 ```
 
 ```yaml
@@ -287,7 +385,15 @@ Instances can also be configured to do simple TCP or HTTP checks on external tar
           value: 10.34.5.141:5000 10.34.195.193:6442
 ```
 
-the timeouts for the TCP, DNS and HTTP checks can be configured via `TCP_TARGETS_TIMEOUT`, `DNS_TARGETS_TIMEOUT` and `HTTP_TARGETS_TIMEOUT` respectively. 
+The timeouts for the TCP, DNS and HTTP checks can be configured via `TCP_TARGETS_TIMEOUT`, `DNS_TARGETS_TIMEOUT` and `HTTP_TARGETS_TIMEOUT` respectively.
+
+**Important improvements:**
+- **Parallel execution:** All external probes run concurrently to minimize total check time
+- **Background caching:** Probe results are cached and updated in the background every refresh-interval
+- **Non-blocking:** External probe checks no longer block pod-to-pod health checks
+- **Independent health:** External probe failures don't affect cluster health status - only pod-to-pod connectivity matters
+
+This means that even if you have many dead TCP targets, your goldpinger pods will remain responsive and correctly report the health of your cluster. External probe results are displayed independently in the UI.
 
 ![screenshot-tcp-http-checks](./extras/tcp-checks-screenshot.png)
 

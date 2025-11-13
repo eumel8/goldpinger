@@ -153,22 +153,11 @@ func updateCounters() {
 		}
 	}
 	CountHealthyUnhealthyNodes(counterHealthy, float64(len(checkResults.PodResults))-counterHealthy)
-	// check external targets, don't block the access to checkResultsMux
+
+	// Cluster health is ONLY based on pod-to-pod connectivity, NOT external probes
+	// External probes (DNS, TCP, HTTP) are independent checks that don't affect cluster health
 	nodesHealthy := int(counterHealthy) == len(checkResults.PodResults)
-	go func(healthySoFar bool) {
-		if healthySoFar {
-			probeResults := checkTargets()
-			for host := range probeResults {
-				for _, response := range probeResults[host] {
-					if response.Error != "" {
-						healthySoFar = false
-						break
-					}
-				}
-			}
-		}
-		SetClusterHealth(healthySoFar)
-	}(nodesHealthy)
+	SetClusterHealth(nodesHealthy)
 }
 
 // collectResults simply reads results from the results channel and saves them in a map
@@ -194,6 +183,48 @@ func collectResults(resultsChan <-chan PingAllPodsResult) {
 	}
 }
 
+// updateProbeTargets periodically runs external probes and caches the results
+func updateProbeTargets() {
+	refreshPeriod := time.Duration(GoldpingerConfig.RefreshInterval) * time.Second
+
+	// Run initial probe check
+	if hasProbeTargets() {
+		zap.L().Info("Starting external probe updater", zap.Duration("refreshPeriod", refreshPeriod))
+		updateCachedProbeResults()
+	}
+
+	ticker := time.NewTicker(refreshPeriod)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if hasProbeTargets() {
+			updateCachedProbeResults()
+		}
+	}
+}
+
+// hasProbeTargets returns true if any external probe targets are configured
+func hasProbeTargets() bool {
+	return len(GoldpingerConfig.DnsHosts) > 0 ||
+		len(GoldpingerConfig.TCPTargets) > 0 ||
+		len(GoldpingerConfig.HTTPTargets) > 0
+}
+
+// updateCachedProbeResults runs checkTargets and updates the cached results
+func updateCachedProbeResults() {
+	results := checkTargets()
+
+	cachedProbeResultsMux.Lock()
+	cachedProbeResults = results
+	cachedProbeResultsMux.Unlock()
+
+	zap.L().Debug("Updated cached probe results",
+		zap.Int("dns_hosts", len(GoldpingerConfig.DnsHosts)),
+		zap.Int("tcp_targets", len(GoldpingerConfig.TCPTargets)),
+		zap.Int("http_targets", len(GoldpingerConfig.HTTPTargets)),
+	)
+}
+
 func StartUpdater() {
 	if GoldpingerConfig.RefreshInterval <= 0 {
 		zap.L().Info("Not creating updater, refresh interval is negative", zap.Int("RefreshInterval", GoldpingerConfig.RefreshInterval))
@@ -206,4 +237,9 @@ func StartUpdater() {
 	resultsChan := make(chan PingAllPodsResult, len(pods))
 	go updatePingers(resultsChan)
 	go collectResults(resultsChan)
+
+	// Start external probe updater if any targets are configured
+	if hasProbeTargets() {
+		go updateProbeTargets()
+	}
 }
