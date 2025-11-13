@@ -9,4 +9,7 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["list"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list","get"]
 {{- end }}
