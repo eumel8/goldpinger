@@ -16,5 +16,5 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           make build
           docker images
-          #docker tag netapp/trident:26.02.0-custom ghcr.io/${{ github.repository_owner }}/netapp/trident:26.02.0-custom
-          #docker push ghcr.io/${{ github.repository_owner }}/goldpinger/goldpinger:dev
+          docker tag bloomberg/goldpinger:v3.10.2 ghcr.io/${{ github.repository_owner }}/goldpinger/goldpinger:dev
+          docker push ghcr.io/${{ github.repository_owner }}/goldpinger/goldpinger:dev
