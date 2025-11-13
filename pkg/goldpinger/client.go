@@ -34,6 +34,9 @@ import (
 // CheckNeighbours queries the kubernetes API server for all other goldpinger pods
 // then calls Ping() on each one
 func CheckNeighbours(ctx context.Context) *models.CheckResults {
+	// Run probes outside of lock to prevent blocking other operations during slow/timeout probes
+	probeResults := checkTargets()
+
 	// Mux to prevent concurrent map address
 	checkResultsMux.Lock()
 	defer checkResultsMux.Unlock()
@@ -42,7 +45,7 @@ func CheckNeighbours(ctx context.Context) *models.CheckResults {
 	for podName, podResult := range checkResults.PodResults {
 		final.PodResults[podName] = podResult
 	}
-	final.ProbeResults = checkTargets()
+	final.ProbeResults = probeResults
 	return &final
 }
 
