@@ -36,9 +36,6 @@ spec:
         - name: goldpinger-daemon
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          volumeMounts:
-            - name: zap
-              mountPath: /config
           env:
             - name: HOSTNAME
               valueFrom:
@@ -48,6 +45,8 @@ spec:
               value: "0.0.0.0"
             - name: PORT
               value: "{{ .Values.goldpinger.port }}"
+            - name: LOG_LEVEL
+              value: "{{ .Values.goldpinger.logLevel }}"
             - name: LABEL_SELECTOR
               value: "app.kubernetes.io/name={{ include "goldpinger.name" . }}"
             {{- if .Values.extraEnv -}}
@@ -76,10 +75,6 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      volumes:
-        - name: zap
-          configMap:
-            name: {{ include "goldpinger.fullname" . }}-zap
       {{- range $k := .Values.extraEnv }}
       {{- if and (eq $k.name "USE_HOST_IP") (eq $k.value "true") }}
       hostNetwork: true

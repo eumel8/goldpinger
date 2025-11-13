@@ -23,29 +23,28 @@ serviceAccount:
 
 goldpinger:
   port: 8080
-  zapConfig: |
-    {
-      "level": "info",
-      "encoding": "json",
-      "outputPaths": [
-          "stdout"
-      ],
-      "errorOutputPaths": [
-          "stderr"
-      ],
-      "initialFields": {
-      },
-      "encoderConfig": {
-          "messageKey": "message",
-          "levelKey": "level",
-          "levelEncoder": "lowercase",
-          "timeKey": "ts",
-          "timeEncoder": "ISO8601",
-          "callerKey": "caller",
-          "callerEncoder": "Short"
-      }
-    }
+  # Log level for structured logging (debug, info, warn, error)
+  # debug: Detailed diagnostic information including probe execution details
+  # info: General informational messages (default)
+  # warn: Warning messages for non-critical issues
+  # error: Error messages for serious problems
+  logLevel: "info"
 
+# Additional environment variables to pass to goldpinger
+# Example external probe configuration:
+# extraEnv:
+#   - name: TCP_TARGETS
+#     value: "10.0.0.1:443 10.0.0.2:8080"
+#   - name: HTTP_TARGETS
+#     value: "https://www.example.com http://api.example.com"
+#   - name: HOSTS_TO_RESOLVE
+#     value: "www.example.com api.example.com"
+#   - name: TCP_TARGETS_TIMEOUT
+#     value: "500ms"
+#   - name: DNS_TARGETS_TIMEOUT
+#     value: "500ms"
+#   - name: HTTP_TARGETS_TIMEOUT
+#     value: "500ms"
 extraEnv: []
 
 service:

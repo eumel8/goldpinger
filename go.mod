@@ -1,6 +1,6 @@
 module github.com/bloomberg/goldpinger/v3
 
-go 1.23
+go 1.24
 
 require (
 	github.com/cespare/xxhash v1.1.0
