@@ -36,19 +36,41 @@ func doDNSProbe(addr string, timeout time.Duration) error {
 }
 
 func doTCPProbe(addr string, timeout time.Duration) error {
+	// add logging here to help debug issues with tcp probes
+	fmt.Printf("Starting TCP probe to %s with timeout %v\n", addr, timeout)
+
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if conn != nil {
+		fmt.Printf("TCP probe to %s successful\n", addr)
 		defer conn.Close()
+	} else if err != nil {
+		fmt.Printf("TCP probe to %s failed: %v\n", addr, err)
 	}
 	return err
 }
 
 func doHTTPProbe(addr string, timeout time.Duration) error {
+	// add logging here to help debug issues with http probes
+	fmt.Printf("Starting HTTP probe to %s with timeout %v\n", addr, timeout)
 	client := http.Client{Timeout: timeout}
 	u, err := url.Parse(addr)
 	if err != nil {
 		return err
 	}
+	// add http transport logging here to help debug issues with http probes
+	client.Transport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	fmt.Printf("HTTP transport configured for %s\n", addr)
+
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("invalid url scheme: '%s' in address", u.Scheme)
 	}
@@ -63,9 +85,13 @@ func doHTTPProbe(addr string, timeout time.Duration) error {
 	if err != nil {
 		return err
 	}
+	// add logging for response status code
+	fmt.Printf("HTTP probe to %s returned status code: %d\n", addr, resp.StatusCode)
 
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		// add logging for non-200 response
+		fmt.Printf("HTTP probe to %s failed with non-200 status code: %d\n", addr, resp.StatusCode)
 		return fmt.Errorf("%s returned non-200 resp: %d", addr, resp.StatusCode)
 	}
 	return err
