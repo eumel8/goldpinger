@@ -2,8 +2,6 @@ name: Container
 
 on:
   push:
-#    tags:
-#    - "*"
     
 jobs:
   build:
@@ -17,5 +15,5 @@ jobs:
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           make build
           docker images
-          docker tag bloomberg/goldpinger:v3.10.2 ghcr.io/${{ github.repository_owner }}/goldpinger/goldpinger:${VERSION}
-          docker push ghcr.io/${{ github.repository_owner }}/goldpinger/goldpinger:${VERSION}
+          docker tag bloomberg/goldpinger:v3.10.2 ghcr.io/${{ github.repository_owner }}/goldpinger:${VERSION}
+          docker push ghcr.io/${{ github.repository_owner }}/goldpinger:${VERSION}
