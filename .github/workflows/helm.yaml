@@ -2,8 +2,8 @@ name: Helm Lint, Package, Push
 
 on: 
   push: 
-    paths: 
-    - 'charts/*'
+#    paths: 
+#    - 'charts/*'
     
 jobs:
   build:
