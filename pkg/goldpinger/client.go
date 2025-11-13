@@ -34,8 +34,10 @@ import (
 // CheckNeighbours queries the kubernetes API server for all other goldpinger pods
 // then calls Ping() on each one
 func CheckNeighbours(ctx context.Context) *models.CheckResults {
-	// Run probes outside of lock to prevent blocking other operations during slow/timeout probes
-	probeResults := checkTargets()
+	// Use cached probe results to avoid blocking on slow/dead targets
+	cachedProbeResultsMux.RLock()
+	probeResults := cachedProbeResults
+	cachedProbeResultsMux.RUnlock()
 
 	// Mux to prevent concurrent map address
 	checkResultsMux.Lock()
@@ -127,8 +129,17 @@ func pickPodHostIP(podIP, hostIP string) string {
 	return podIP
 }
 
+// cachedProbeResults stores the latest probe results
+var cachedProbeResults = models.ProbeResults{}
+
+// cachedProbeResultsMux controls concurrent access to cachedProbeResults
+var cachedProbeResultsMux = sync.RWMutex{}
+
 func checkTargets() models.ProbeResults {
 	results := make(map[string][]models.ProbeResult)
+	resultsMux := sync.Mutex{}
+	wg := sync.WaitGroup{}
+
 	probes := []struct {
 		protocol string
 		hosts    []string
@@ -159,25 +170,40 @@ func checkTargets() models.ProbeResults {
 		},
 	}
 
+	// Run all probes in parallel to avoid blocking
 	for _, probe := range probes {
 		for _, host := range probe.hosts {
-			if _, ok := results[host]; !ok {
-				results[host] = []models.ProbeResult{}
-			}
+			wg.Add(1)
+			go func(p struct {
+				protocol string
+				hosts    []string
+				probeFn  func(addr string, timeout time.Duration) error
+				statFn   func(host string)
+				timeout  time.Duration
+			}, h string) {
+				defer wg.Done()
 
-			res := models.ProbeResult{Protocol: probe.protocol}
-			start := time.Now()
-			err := probe.probeFn(host, probe.timeout)
-			if err != nil {
-				res.Error = err.Error()
-				probe.statFn(host)
-			}
+				res := models.ProbeResult{Protocol: p.protocol}
+				start := time.Now()
+				err := p.probeFn(h, p.timeout)
+				if err != nil {
+					res.Error = err.Error()
+					p.statFn(h)
+				}
 
-			res.ResponseTimeMs = time.Since(start).Milliseconds()
-			results[host] = append(results[host], res)
+				res.ResponseTimeMs = time.Since(start).Milliseconds()
+
+				resultsMux.Lock()
+				if _, ok := results[h]; !ok {
+					results[h] = []models.ProbeResult{}
+				}
+				results[h] = append(results[h], res)
+				resultsMux.Unlock()
+			}(probe, host)
 		}
 	}
 
+	wg.Wait()
 	return results
 }
 
