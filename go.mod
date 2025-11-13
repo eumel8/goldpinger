@@ -11,7 +11,7 @@ require (
 	github.com/go-openapi/strfmt v0.25.0
 	github.com/go-openapi/swag v0.25.1
 	github.com/go-openapi/validate v0.24.0
-	github.com/jessevdk/go-flags v1.5.0
+	github.com/jessevdk/go-flags v1.6.1
 	github.com/prometheus/client_golang v1.19.0
 	github.com/stuartnelson3/go-rendezvous v0.2.0
 	go.uber.org/zap v1.27.0
