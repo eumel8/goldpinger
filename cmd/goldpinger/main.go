@@ -15,9 +15,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -25,6 +23,7 @@ import (
 
 	"github.com/go-openapi/loads"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -42,22 +41,35 @@ var (
 	Version, Build string
 )
 
-func getLogger(zapconfigpath string) (*zap.Logger, error) {
-	var logger *zap.Logger
-	var err error
-
-	zapconfigJSON, err := ioutil.ReadFile(zapconfigpath)
-	if err != nil {
-		return nil, fmt.Errorf("Could not read zap config file: %w", err)
-	}
-
+func getLogger(logLevel string) (*zap.Logger, error) {
 	var cfg zap.Config
-	if err := json.Unmarshal(zapconfigJSON, &cfg); err != nil {
-		return nil, fmt.Errorf("Could not read zap config as json: %w", err)
+
+	// Set base config based on log level
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		cfg = zap.NewDevelopmentConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	case "info":
+		cfg = zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case "warn":
+		cfg = zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+	case "error":
+		cfg = zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	default:
+		cfg = zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	}
-	logger, err = cfg.Build()
+
+	// Use console encoding for better readability
+	cfg.Encoding = "console"
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	logger, err := cfg.Build()
 	if err != nil {
-		return nil, fmt.Errorf("Could not build zap config: %w", err)
+		return nil, fmt.Errorf("Could not build logger: %w", err)
 	}
 
 	return logger, nil
@@ -99,16 +111,14 @@ func main() {
 	}
 
 	// Configure logger
-	logger, err := getLogger(goldpinger.GoldpingerConfig.ZapConfigPath)
+	logger, err := getLogger(goldpinger.GoldpingerConfig.LogLevel)
 	if err != nil {
-		var errDev error
-		logger, errDev = zap.NewDevelopment()
-		if errDev != nil {
-			log.Fatalf("Could not build a development logger: %v", errDev)
-		}
-		logger.Warn("Logger could not be built, defaulting to development settings", zap.String("error", fmt.Sprintf("%v", err)))
+		log.Fatalf("Could not build logger: %v", err)
 	}
 	defer logger.Sync()
+
+	// Set as global logger
+	zap.ReplaceGlobals(logger)
 
 	undo := zap.RedirectStdLog(logger)
 	defer undo()

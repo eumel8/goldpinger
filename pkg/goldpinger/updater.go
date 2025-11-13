@@ -153,22 +153,11 @@ func updateCounters() {
 		}
 	}
 	CountHealthyUnhealthyNodes(counterHealthy, float64(len(checkResults.PodResults))-counterHealthy)
-	// check external targets, don't block the access to checkResultsMux
+
+	// Cluster health is ONLY based on pod-to-pod connectivity, NOT external probes
+	// External probes (DNS, TCP, HTTP) are independent checks that don't affect cluster health
 	nodesHealthy := int(counterHealthy) == len(checkResults.PodResults)
-	go func(healthySoFar bool) {
-		if healthySoFar {
-			probeResults := checkTargets()
-			for host := range probeResults {
-				for _, response := range probeResults[host] {
-					if response.Error != "" {
-						healthySoFar = false
-						break
-					}
-				}
-			}
-		}
-		SetClusterHealth(healthySoFar)
-	}(nodesHealthy)
+	SetClusterHealth(nodesHealthy)
 }
 
 // collectResults simply reads results from the results channel and saves them in a map
