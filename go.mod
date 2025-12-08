@@ -4,7 +4,7 @@ go 1.25.4
 
 require (
 	github.com/cespare/xxhash v1.1.0
-	github.com/go-openapi/errors v0.22.4
+	github.com/go-openapi/errors v0.22.5
 	github.com/go-openapi/loads v0.23.2
 	github.com/go-openapi/runtime v0.29.2
 	github.com/go-openapi/spec v0.22.1
