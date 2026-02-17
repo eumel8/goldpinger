@@ -17,7 +17,7 @@ require (
 	go.uber.org/zap v1.27.1
 	golang.org/x/image v0.35.0
 	golang.org/x/net v0.49.0
-	k8s.io/api v0.35.0
+	k8s.io/api v0.35.1
 	k8s.io/apimachinery v0.35.1
 	k8s.io/client-go v0.35.0
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
