@@ -15,7 +15,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stuartnelson3/go-rendezvous v0.2.0
 	go.uber.org/zap v1.27.1
-	golang.org/x/image v0.36.0
+	golang.org/x/image v0.41.0
 	golang.org/x/net v0.57.0
 	k8s.io/api v0.35.0
 	k8s.io/apimachinery v0.35.2
